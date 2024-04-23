@@ -2,11 +2,26 @@ from fastapi import FastAPI, Body, Path, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from jwt_manager import create_token
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
 * JSONResponse = useful for send JSON response to the client.
+* Path = useful for send a limit and offset in params.
+* Query = useful for query in route
+* Status = useful for all status code.
 """
+
+
+# class for the users
+class User(BaseModel):
+    email: str
+    password: str
+
+    class Config:
+        json_schema_user = {
+            "example": {"email": "example@example.com", "password": "hello_world_2024"}
+        }
 
 
 # Class for the movies
@@ -72,48 +87,58 @@ def message():
     return HTMLResponse("<h1>Hello World</h1>")
 
 
+# .dict() is deprecated. Now use .__dict__ or .model_dump()
+@app.post("/login", tags=["auth"], response_model=User)
+def login_user(user: User):
+    if user.email == "admin@admin.com" and user.password == "admin":
+        token: str = create_token(user.__dict__)
+        return JSONResponse(status_code=201, content=token)
+
+
 # get new route
 # response_model it will show us the response model
-@app.get("/movies", tags=["movies"], response_model=List[Movie])
+@app.get("/movies", tags=["movies"], response_model=List[Movie], status_code=200)
 def get_movies() -> List[Movie]:
-    return JSONResponse(content=movies)
+    return JSONResponse(status_code=200, content=movies)
 
 
 # get route with params
-@app.get("/movies/{id}", tags=["movies"], response_model=Movie)
+@app.get("/movies/{id}", tags=["movies"], response_model=Movie, status_code=200)
 def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
     def movie_filter(movie_id):
         if movie_id["id"] == id:
             return movie_id
 
     movie = filter(movie_filter, movies)
-    return JSONResponse(content=list(movie)) or JSONResponse(content=[])
+    return JSONResponse(status_code=200, content=list(movie)) or JSONResponse(
+        status_code=404, content=[]
+    )
 
 
 # sin pasarlo por la ruta FastAPI lo interpreta como una query
-@app.get("/movies/", tags=["movies"], response_model=List[Movie])
+@app.get("/movies/", tags=["movies"], response_model=List[Movie], status_code=200)
 def get_movies_by_category(
     category: str = Query(min_length=3, max_length=15)
 ) -> List[Movie]:
     query = lambda movie: [i for i in movies if i["category"] == movie]
-    return query(category.capitalize())
+    return JSONResponse(status_code=200, content=query(category.capitalize()))
 
 
 # method post
-@app.post("/movies", tags=["movies"], response_model=dict)
+@app.post("/movies", tags=["movies"], response_model=dict, status_code=201)
 # params = query
 def create_movie(movie: Movie) -> dict:
     movies.append(movie)
-    return JSONResponse(content={"message": "register success"})
+    return JSONResponse(status_code=201, content={"message": "register success"})
 
 
 # the params must be both name than the path
-@app.put("/movies/{id}", tags=["movies"], response_model=dict)
+@app.put("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
 def update_movie(id: int, change: Movie) -> dict:
     query = list(filter(lambda el: el["id"] == id, movies))
     query[0]["title"] = change.title
     query[0]["overview"] = change.overview
-    return JSONResponse(content={"message": [query[0]]})
+    return JSONResponse(status_code=200, content={"message": [query[0]]})
 
 
 """
@@ -133,8 +158,8 @@ def update_movie(
 """
 
 
-@app.delete("/movies/{id}", tags=["movies"], response_model=dict)
+@app.delete("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
 def delete_movie(id: int) -> dict:
     query = list(filter(lambda item: item["id"] == id, movies))
     query.remove()
-    return movies
+    return JSONResponse(status_code=200, content=movies)

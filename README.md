@@ -23,6 +23,7 @@ Este repositorio está enfocado en mostrarte los conceptos básico sobre [FastAP
 - **/movies**: Lista de películas en formato JSON.
 - **/movies/id**: El id debe ser un número y te mostrará solamente esa película.
 - **/movies/?category=nombre_de_la_categoria**: Te mostrará la película depende de su categoría.
+- **/login**: Te sirve para crear un token para el inicio de sesión.
 
 ### Interés:
 
