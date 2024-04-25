@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Body, Path, Query
+from fastapi import FastAPI, Body, Path, Query, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from jwt_manager import create_token
+from jwt_manager import create_token, validate_token
+from fastapi.security import HTTPBearer
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -10,7 +11,18 @@ from jwt_manager import create_token
 * Path = useful for send a limit and offset in params.
 * Query = useful for query in route
 * Status = useful for all status code.
+* HTTPException = useful for send error Message and don't stop the app.
+* Request = util para la solicitud que vamos a requerir desde la petición
 """
+
+
+class JWTBearer(HTTPBearer):
+    async def __call__(self, request: Request):
+        # super() es la función superior que en este caso sería HTTPBearer y tiene un método llamado .__call__() que hace la solicitud de forma asíncrona.
+        auth = await super().__call__(request)
+        data = validate_token(auth.credentials)
+        if data["email"] != "admin@admin.com":
+            raise HTTPException(status_code=403, detail="credentials invalid")
 
 
 # class for the users
@@ -96,8 +108,16 @@ def login_user(user: User):
 
 
 # get new route
-# response_model it will show us the response model
-@app.get("/movies", tags=["movies"], response_model=List[Movie], status_code=200)
+# response_model it will show us the response model.
+# dependencies are the middlewares
+# Depends is a class and inside must having the class JWTBearer.
+@app.get(
+    "/movies",
+    tags=["movies"],
+    response_model=List[Movie],
+    status_code=200,
+    dependencies=[Depends(JWTBearer())],
+)
 def get_movies() -> List[Movie]:
     return JSONResponse(status_code=200, content=movies)
 
