@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from jwt_manager import create_token, validate_token
 from fastapi.security import HTTPBearer
+from config.database import session, engine, Base
+from models.movie import Movie
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -14,6 +16,14 @@ from fastapi.security import HTTPBearer
 * HTTPException = useful for send error Message and don't stop the app.
 * Request = util para la solicitud que vamos a requerir desde la petición
 """
+# instance of The Class FastAPI
+app = FastAPI()
+
+# title of my application and docs
+app.title = "My app with FastAPI"
+
+# create database
+Base.metadata.create_all(bind=engine)
 
 
 class JWTBearer(HTTPBearer):
@@ -58,12 +68,6 @@ class Movie(BaseModel):
             }
         }
 
-
-# instance of The Class FastAPI
-app = FastAPI()
-
-# title of my application and docs
-app.title = "My app with FastAPI"
 
 movies = [
     {
