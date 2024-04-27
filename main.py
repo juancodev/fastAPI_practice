@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from jwt_manager import create_token, validate_token
 from fastapi.security import HTTPBearer
-from config.database import session, engine, Base
-from models.movie import Movie
+from config.database import Session, engine, Base
+from models.movie import Movie as MovieModel
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -51,7 +51,7 @@ class Movie(BaseModel):
     id: Optional[int] = None
     title: str = Field(min_length=2, max_length=15)
     overview: str = Field(min_length=5, max_length=100)
-    year: str = Field(min_length=4, max_length=4)
+    year: int = None
     rating: float = Field(ge=0, le=10)
     category: str = Field(min_length=3, max_length=15)
 
@@ -152,7 +152,14 @@ def get_movies_by_category(
 @app.post("/movies", tags=["movies"], response_model=dict, status_code=201)
 # params = query
 def create_movie(movie: Movie) -> dict:
-    movies.append(movie)
+    # Session is the connection to the DB.
+    db = Session()
+    # Create an instance of class MovieModel giving the arguments with **
+    new_movie = MovieModel(**movie.__dict__)
+    # add to the DB the new register.
+    db.add(new_movie)
+    # saving the changes with commit()
+    db.commit()
     return JSONResponse(status_code=201, content={"message": "register success"})
 
 
