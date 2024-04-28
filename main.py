@@ -6,6 +6,7 @@ from jwt_manager import create_token, validate_token
 from fastapi.security import HTTPBearer
 from config.database import Session, engine, Base
 from models.movie import Movie as MovieModel
+from fastapi.encoders import jsonable_encoder
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -15,6 +16,7 @@ from models.movie import Movie as MovieModel
 * Status = useful for all status code.
 * HTTPException = useful for send error Message and don't stop the app.
 * Request = util para la solicitud que vamos a requerir desde la petición
+* jsonable_encoder = nos sirve para convertir la respuesta del modelo de la clase en respuesta json
 """
 # instance of The Class FastAPI
 app = FastAPI()
@@ -123,20 +125,27 @@ def login_user(user: User):
     dependencies=[Depends(JWTBearer())],
 )
 def get_movies() -> List[Movie]:
-    return JSONResponse(status_code=200, content=movies)
+
+    # Make session to our database
+    db = Session()
+    # Para hacer la consulta necesitamos el método query() adentro le pasamos el modelo y mostramos all()
+    result = db.query(MovieModel).all()
+    return JSONResponse(status_code=200, content=jsonable_encoder(result))
 
 
 # get route with params
 @app.get("/movies/{id}", tags=["movies"], response_model=Movie, status_code=200)
 def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
-    def movie_filter(movie_id):
-        if movie_id["id"] == id:
-            return movie_id
 
-    movie = filter(movie_filter, movies)
-    return JSONResponse(status_code=200, content=list(movie)) or JSONResponse(
-        status_code=404, content=[]
-    )
+    # Make session to our database
+    db = Session()
+    # Hacemos la consulta a nuestro modelo pero utilizaremos una filtrado con una condición.
+    result = db.query(MovieModel).filter(MovieModel.id == id).first()
+
+    if not result:
+        return JSONResponse(status_code=404, content={"message": "Not found"})
+
+    return JSONResponse(status_code=200, content=jsonable_encoder(result))
 
 
 # sin pasarlo por la ruta FastAPI lo interpreta como una query
