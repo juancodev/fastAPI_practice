@@ -1,12 +1,10 @@
-from fastapi import FastAPI, Body, Path, Query, Request, HTTPException, Depends
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from jwt_manager import create_token, validate_token
-from fastapi.security import HTTPBearer
-from config.database import Session, engine, Base
-from models.movie import Movie as MovieModel
-from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
+from jwt_manager import create_token
+from config.database import engine, Base
+from middleware.error_handler import ErrorHandler
+from router.movie import movie_router
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -24,17 +22,17 @@ app = FastAPI()
 # title of my application and docs
 app.title = "My app with FastAPI"
 
+# version of my API
+app.version = "0.0.1"
+
+# use middleware in all the app for handle error.
+app.add_middleware(ErrorHandler)
+
+# include all routing of our app
+app.include_router(movie_router)
+
 # create database
 Base.metadata.create_all(bind=engine)
-
-
-class JWTBearer(HTTPBearer):
-    async def __call__(self, request: Request):
-        # super() es la función superior que en este caso sería HTTPBearer y tiene un método llamado .__call__() que hace la solicitud de forma asíncrona.
-        auth = await super().__call__(request)
-        data = validate_token(auth.credentials)
-        if data["email"] != "admin@admin.com":
-            raise HTTPException(status_code=403, detail="credentials invalid")
 
 
 # class for the users
@@ -45,29 +43,6 @@ class User(BaseModel):
     class Config:
         json_schema_user = {
             "example": {"email": "example@example.com", "password": "hello_world_2024"}
-        }
-
-
-# Class for the movies
-class Movie(BaseModel):
-    id: Optional[int] = None
-    title: str = Field(min_length=2, max_length=15)
-    overview: str = Field(min_length=5, max_length=100)
-    year: int = None
-    rating: float = Field(ge=0, le=10)
-    category: str = Field(min_length=3, max_length=15)
-
-    # class config example
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": 1,
-                "title": "Title of the movie",
-                "overview": "Description of the movie",
-                "year": "2024",
-                "rating": 9.9,
-                "category": "Category of the movie",
-            }
         }
 
 
@@ -111,95 +86,3 @@ def login_user(user: User):
     if user.email == "admin@admin.com" and user.password == "admin":
         token: str = create_token(user.__dict__)
         return JSONResponse(status_code=201, content=token)
-
-
-# get new route
-# response_model it will show us the response model.
-# dependencies are the middlewares
-# Depends is a class and inside must having the class JWTBearer.
-@app.get(
-    "/movies",
-    tags=["movies"],
-    response_model=List[Movie],
-    status_code=200,
-    dependencies=[Depends(JWTBearer())],
-)
-def get_movies() -> List[Movie]:
-
-    # Make session to our database
-    db = Session()
-    # Para hacer la consulta necesitamos el método query() adentro le pasamos el modelo y mostramos all()
-    result = db.query(MovieModel).all()
-    return JSONResponse(status_code=200, content=jsonable_encoder(result))
-
-
-# get route with params
-@app.get("/movies/{id}", tags=["movies"], response_model=Movie, status_code=200)
-def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
-
-    # Make session to our database
-    db = Session()
-    # Hacemos la consulta a nuestro modelo pero utilizaremos una filtrado con una condición.
-    result = db.query(MovieModel).filter(MovieModel.id == id).first()
-
-    if not result:
-        return JSONResponse(status_code=404, content={"message": "Not found"})
-
-    return JSONResponse(status_code=200, content=jsonable_encoder(result))
-
-
-# sin pasarlo por la ruta FastAPI lo interpreta como una query
-@app.get("/movies/", tags=["movies"], response_model=List[Movie], status_code=200)
-def get_movies_by_category(
-    category: str = Query(min_length=3, max_length=15)
-) -> List[Movie]:
-    query = lambda movie: [i for i in movies if i["category"] == movie]
-    return JSONResponse(status_code=200, content=query(category.capitalize()))
-
-
-# method post
-@app.post("/movies", tags=["movies"], response_model=dict, status_code=201)
-# params = query
-def create_movie(movie: Movie) -> dict:
-    # Session is the connection to the DB.
-    db = Session()
-    # Create an instance of class MovieModel giving the arguments with **
-    new_movie = MovieModel(**movie.__dict__)
-    # add to the DB the new register.
-    db.add(new_movie)
-    # saving the changes with commit()
-    db.commit()
-    return JSONResponse(status_code=201, content={"message": "register success"})
-
-
-# the params must be both name than the path
-@app.put("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
-def update_movie(id: int, change: Movie) -> dict:
-    query = list(filter(lambda el: el["id"] == id, movies))
-    query[0]["title"] = change.title
-    query[0]["overview"] = change.overview
-    return JSONResponse(status_code=200, content={"message": [query[0]]})
-
-
-"""
-# other form
-@app.put("/movies/{id}", tags=["movies"])
-def update_movie(
-    id: int, title: str, overview: str, year: str, rating: float, category: str
-):
-    for item in movies:
-        if item["id"] == id:
-            item["title"] = title
-            item["overview"] = overview
-            item["year"] = year
-            item["rating"] = rating
-            item["category"] = category
-            return movies
-"""
-
-
-@app.delete("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
-def delete_movie(id: int) -> dict:
-    query = list(filter(lambda item: item["id"] == id, movies))
-    query.remove()
-    return JSONResponse(status_code=200, content=movies)
