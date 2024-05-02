@@ -6,6 +6,7 @@ from typing import Optional, List
 from models.movie import Movie as MovieModel
 from fastapi.encoders import jsonable_encoder
 from middleware.jwt_bearer import JWTBearer
+from services.movie import MovieService
 
 movie_router = APIRouter()
 
@@ -41,30 +42,29 @@ class Movie(BaseModel):
 # Make session to our database
 DB = Session()
 
-movie_router.get(
+
+@movie_router.get(
     "/movies",
     tags=["movies"],
     response_model=List[Movie],
     status_code=200,
     dependencies=[Depends(JWTBearer())],
 )
-
-
 def get_movies() -> List[Movie]:
 
     # Para hacer la consulta necesitamos el método query() adentro le pasamos el modelo y mostramos all()
-    result = DB.query(MovieModel).all()
+    result = MovieService(DB).get_movies()
     return JSONResponse(status_code=200, content=jsonable_encoder(result))
 
 
 # get route with params
-movie_router.get("/movies/{id}", tags=["movies"], response_model=Movie, status_code=200)
-
-
+@movie_router.get(
+    "/movies/{id}", tags=["movies"], response_model=Movie, status_code=200
+)
 def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
 
     # Hacemos la consulta a nuestro modelo pero utilizaremos una filtrado con una condición.
-    result = DB.query(MovieModel).filter(MovieModel.id == id).first()
+    result = MovieService(DB).get_movie(id)
 
     if not result:
         return JSONResponse(status_code=404, content={"message": "Not found"})
@@ -73,11 +73,9 @@ def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
 
 
 # sin pasarlo por la ruta FastAPI lo interpreta como una query
-movie_router.get(
+@movie_router.get(
     "/movies/", tags=["movies"], response_model=List[Movie], status_code=200
 )
-
-
 def get_movies_by_category(
     category: str = Query(min_length=3, max_length=15)
 ) -> List[Movie]:
@@ -91,9 +89,7 @@ def get_movies_by_category(
 
 
 # method post
-movie_router.post("/movies", tags=["movies"], response_model=dict, status_code=201)
-
-
+@movie_router.post("/movies", tags=["movies"], response_model=dict, status_code=201)
 # params = query
 def create_movie(movie: Movie) -> dict:
     # Session is the connection to the DB.
@@ -108,9 +104,7 @@ def create_movie(movie: Movie) -> dict:
 
 
 # the params must be both name than the path
-movie_router.put("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
-
-
+@movie_router.put("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
 def update_movie(id: int, change) -> dict:
     result = DB.query(MovieModel).filter(MovieModel.id == id).first()
 
@@ -148,11 +142,9 @@ def update_movie(
 """
 
 
-movie_router.delete(
+@movie_router.delete(
     "/movies/{id}", tags=["movies"], response_model=dict, status_code=200
 )
-
-
 def delete_movie(id: int) -> dict:
 
     result = DB.query(MovieModel).filter(MovieModel.id == id).first()

@@ -1,10 +1,9 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
-from jwt_manager import create_token
+from fastapi.responses import HTMLResponse
 from config.database import engine, Base
 from middleware.error_handler import ErrorHandler
 from router.movie import movie_router
+from router.auth import auth_router
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -23,28 +22,17 @@ app = FastAPI()
 app.title = "My app with FastAPI"
 
 # version of my API
-app.version = "0.0.1"
+# app.version = "0.0.1"
 
 # use middleware in all the app for handle error.
 app.add_middleware(ErrorHandler)
 
 # include all routing of our app
 app.include_router(movie_router)
+app.include_router(auth_router)
 
 # create database
 Base.metadata.create_all(bind=engine)
-
-
-# class for the users
-class User(BaseModel):
-    email: str
-    password: str
-
-    class Config:
-        json_schema_user = {
-            "example": {"email": "example@example.com", "password": "hello_world_2024"}
-        }
-
 
 movies = [
     {
@@ -78,11 +66,3 @@ movies = [
 @app.get("/", tags=["home"])
 def message():
     return HTMLResponse("<h1>Hello World</h1>")
-
-
-# .dict() is deprecated. Now use .__dict__ or .model_dump()
-@app.post("/login", tags=["auth"], response_model=User)
-def login_user(user: User):
-    if user.email == "admin@admin.com" and user.password == "admin":
-        token: str = create_token(user.__dict__)
-        return JSONResponse(status_code=201, content=token)
