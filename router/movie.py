@@ -1,38 +1,14 @@
 from fastapi import APIRouter, Path, Depends, Query
 from fastapi.responses import JSONResponse
 from config.database import Session
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import List
 from models.movie import Movie as MovieModel
 from fastapi.encoders import jsonable_encoder
 from middleware.jwt_bearer import JWTBearer
 from services.movie import MovieService
+from schemas.movie import Movie
 
 movie_router = APIRouter()
-
-
-# Class for the movies
-class Movie(BaseModel):
-    id: Optional[int] = None
-    title: str = Field(min_length=2, max_length=15)
-    overview: str = Field(min_length=5, max_length=100)
-    year: int = None
-    rating: float = Field(ge=0, le=10)
-    category: str = Field(min_length=3, max_length=15)
-
-    # class config example
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": 1,
-                "title": "Title of the movie",
-                "overview": "Description of the movie",
-                "year": "2024",
-                "rating": 9.9,
-                "category": "Category of the movie",
-            }
-        }
-
 
 # get new route
 # response_model it will show us the response model.
@@ -79,7 +55,7 @@ def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
 def get_movies_by_category(
     category: str = Query(min_length=3, max_length=15)
 ) -> List[Movie]:
-    result = DB.query(MovieModel).filter_by(category=category).all()
+    result = MovieService(DB).get_movie_by_category(category)
 
     # query = lambda movie: [i for i in movies if i["category"] == movie]
     if not result:
@@ -92,37 +68,19 @@ def get_movies_by_category(
 @movie_router.post("/movies", tags=["movies"], response_model=dict, status_code=201)
 # params = query
 def create_movie(movie: Movie) -> dict:
-    # Session is the connection to the DB.
-    db = Session()
-    # Create an instance of class MovieModel giving the arguments with **
-    new_movie = MovieModel(**movie.__dict__)
-    # add to the DB the new register.
-    db.add(new_movie)
-    # saving the changes with commit()
-    db.commit()
+    MovieService(DB).create_movie(movie)
     return JSONResponse(status_code=201, content={"message": "register success"})
 
 
 # the params must be both name than the path
 @movie_router.put("/movies/{id}", tags=["movies"], response_model=dict, status_code=200)
-def update_movie(id: int, change) -> dict:
-    result = DB.query(MovieModel).filter(MovieModel.id == id).first()
+def update_movie(id: int, change_movie: Movie) -> dict:
 
-    # query = list(filter(lambda el: el["id"] == id, movies))
-    # query[0]["title"] = change.title
-    # query[0]["overview"] = change.overview
-
-    if not result:
-        return JSONResponse(content={"message": "Not found"}, status_code=404)
-
-    result.title = change.title
-    result.overview = change.overview
-    result.year = change.year
-    result.rating = change.rating
-    result.category = change.category
-    DB.commit()
-
-    return JSONResponse(status_code=200, content={"message": "Change success"})
+    try:
+        MovieService(DB).update_movie(id, change_movie)
+        return JSONResponse(status_code=200, content={"message": "Change success"})
+    except Exception as e:
+        return JSONResponse(content={"message": str(e)}, status_code=404)
 
 
 """
@@ -146,15 +104,11 @@ def update_movie(
     "/movies/{id}", tags=["movies"], response_model=dict, status_code=200
 )
 def delete_movie(id: int) -> dict:
-
-    result = DB.query(MovieModel).filter(MovieModel.id == id).first()
-
-    if not result:
-        return JSONResponse(content={"message": "Not found"}, status_code=404)
-
-    DB.delete(result)
-    DB.commit()
+    try:
+        MovieService(DB).delete_movie(id)
+        return JSONResponse(status_code=200, content={"message": "Delete movie"})
+    except Exception as e:
+        return JSONResponse(content={"message": str(e)}, status_code=404)
 
     # query = list(filter(lambda item: item["id"] == id, movies))
     # query.remove()
-    return JSONResponse(status_code=200, content={"message": "Delete movie"})
