@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 from config.database import engine, Base
 from middleware.error_handler import ErrorHandler
 from router.movie import movie_router
 from router.auth import auth_router
+from router.home import home_router
 
 """
 * HTMLResponse = useful for send HTML response to the browser.
@@ -28,41 +28,9 @@ app.title = "My app with FastAPI"
 app.add_middleware(ErrorHandler)
 
 # include all routing of our app
+app.include_router(home_router)
 app.include_router(movie_router)
 app.include_router(auth_router)
 
 # create database
 Base.metadata.create_all(bind=engine)
-
-movies = [
-    {
-        "id": 1,
-        "title": "Avatar",
-        "overview": "En un exuberante planeta llamado Pandora viven los Na'vi, seres que...",
-        "year": "2009",
-        "rating": 7.8,
-        "category": "Acción",
-    },
-    {
-        "id": 2,
-        "title": "End Game",
-        "overview": "En un exuberante planeta llamado Pandora viven los Na'vi, seres que...",
-        "year": "2018",
-        "rating": 9.5,
-        "category": "Ficción",
-    },
-    {
-        "id": 3,
-        "title": "End Game",
-        "overview": "En un exuberante planeta llamado Pandora viven los Na'vi, seres que...",
-        "year": "2018",
-        "rating": 9.5,
-        "category": "Drama",
-    },
-]
-
-
-# change tags
-@app.get("/", tags=["home"])
-def message():
-    return HTMLResponse("<h1>Hello World</h1>")
